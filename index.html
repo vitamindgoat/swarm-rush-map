@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Swarm Rush — Game Map</title>
+<style>
+:root{
+  --bg:#1c1d21; --bg2:#212226; --dot:#ffffff0d;
+  --hex:#2a2c33; --hex2:#33353d; --hexbd:#3d404a; --hexbd2:#4a4e5a;
+  --ink:#e7e8ee; --dim:#9297a5; --faint:#6a6f7d;
+  --line:#54586880; --linehi:#7c5cff;
+  --pill:#26272d; --pillbd:#3a3d47;
+  --common:#9aa3c7;--uncommon:#4ade80;--rare:#3b9dff;--epic:#b45cff;--legendary:#ff9f2e;--mythic:#ff4d6d;--secret:#ffd54a;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
+  font-family:'Segoe UI',system-ui,-apple-system,sans-serif;-webkit-user-select:none;user-select:none}
+#stage{position:fixed;inset:0;cursor:grab;
+  background:radial-gradient(1400px 900px at 50% 42%, #232428 0%, #1a1b1f 70%, #161619 100%);}
+#stage.grab{cursor:grabbing}
+#stage::before{content:"";position:absolute;inset:-2000px;pointer-events:none;
+  background-image:radial-gradient(circle at 1px 1px, var(--dot) 1px, transparent 0);background-size:26px 26px;}
+#world{position:absolute;top:0;left:0;transform-origin:0 0;will-change:transform}
+svg#links{position:absolute;overflow:visible;pointer-events:none;top:0;left:0}
+
+/* ---- node ---- */
+.node{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer}
+.hexwrap{position:relative;filter:drop-shadow(0 4px 10px #0006)}
+.hex{width:56px;height:62px;display:grid;place-items:center;position:relative;
+  clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+  background:linear-gradient(160deg,var(--hex2),var(--hex));transition:transform .1s,filter .12s}
+.hexbd{position:absolute;inset:0;clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+  background:var(--rc,var(--hexbd));z-index:-1;transform:scale(1.06)}
+.node:hover .hex{transform:translateY(-2px)}
+.node.sel .hexbd{background:var(--rc,#7c5cff);transform:scale(1.12);filter:drop-shadow(0 0 8px var(--rc,#7c5cff))}
+.hex .ic{font-size:24px;line-height:1;filter:drop-shadow(0 1px 1px #0008)}
+.hex.root{width:66px;height:74px;background:linear-gradient(160deg,#3a3652,#272338)}
+.hex.root .ic{font-size:26px}
+.hex.sys{width:62px;height:69px;background:linear-gradient(160deg,#3a3d4c,#2c2e3a)}
+.hex.sys .ic{font-size:25px}
+.node.root .hexbd{background:#5a4d8a}
+.syslbl{color:#c4c8d6 !important;font-weight:700 !important;font-size:12.5px !important}
+/* badge */
+.badge{position:absolute;top:-4px;right:-6px;min-width:19px;height:19px;padding:0 5px;border-radius:11px;
+  background:#2e3f6b;border:1.5px solid #4a6bd8;color:#cfe0ff;font-size:10px;font-weight:800;
+  display:grid;place-items:center;z-index:3;box-shadow:0 2px 6px #0007}
+.badge.rar{background:var(--rc,#333);border-color:#0000;color:#0d0d12}
+/* label */
+.lbl{font-size:11.5px;font-weight:600;color:var(--dim);white-space:nowrap;letter-spacing:.01em;
+  max-width:120px;overflow:hidden;text-overflow:ellipsis;text-align:center;pointer-events:none}
+.node.root .lbl{color:var(--ink);font-weight:700}
+.node.sel .lbl{color:var(--ink)}
+.lblpill{background:var(--pill);border:1px solid var(--pillbd);padding:3px 11px;border-radius:8px;
+  font-size:12px;font-weight:600;color:var(--ink)}
+.kidcount{position:absolute;bottom:-3px;left:50%;transform:translateX(-50%);
+  font-size:9px;color:var(--faint);font-weight:700;background:var(--bg);padding:0 4px;border-radius:6px}
+
+/* ---- top bar ---- */
+#top{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:40;
+  display:flex;align-items:center;gap:8px;background:#26272dee;border:1px solid var(--pillbd);
+  border-radius:12px;padding:8px 16px;backdrop-filter:blur(10px);box-shadow:0 6px 20px #0006}
+#top .mi{font-size:15px}
+#top b{font-size:14px;font-weight:700;letter-spacing:.01em}
+#tools{position:fixed;top:12px;right:12px;z-index:40;display:flex;gap:7px}
+#tools .t{background:#26272dee;border:1px solid var(--pillbd);color:var(--ink);border-radius:10px;
+  padding:8px 12px;font-size:12.5px;font-weight:600;cursor:pointer;backdrop-filter:blur(10px);transition:.12s;display:flex;align-items:center;gap:5px}
+#tools .t:hover{background:#31333bee;border-color:#4a4e5a}
+#zbar{position:fixed;top:12px;left:12px;z-index:40;display:flex;align-items:center;gap:2px;
+  background:#26272dee;border:1px solid var(--pillbd);border-radius:10px;padding:3px;backdrop-filter:blur(10px)}
+#zbar button{width:30px;height:30px;border:0;background:none;color:var(--ink);font-size:17px;cursor:pointer;border-radius:7px}
+#zbar button:hover{background:#ffffff12}
+#zbar .zl{font-size:11px;color:var(--dim);padding:0 8px;font-weight:700;min-width:44px;text-align:center}
+
+/* ---- legend ---- */
+#legend{position:fixed;bottom:14px;left:14px;z-index:40;display:flex;gap:9px;flex-wrap:wrap;max-width:56vw;
+  background:#22232899;border:1px solid var(--pillbd);border-radius:10px;padding:8px 11px;backdrop-filter:blur(8px)}
+#legend .lg{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--dim);font-weight:600}
+#legend .lg i{width:9px;height:9px;border-radius:3px}
+
+/* ---- detail panel ---- */
+#panel{position:fixed;top:0;right:0;height:100%;width:min(410px,93vw);z-index:60;
+  background:linear-gradient(180deg,#212227,#191a1e);border-left:1px solid var(--pillbd);
+  box-shadow:-24px 0 60px #000a;transform:translateX(103%);transition:transform .3s cubic-bezier(.4,0,.2,1);
+  display:flex;flex-direction:column}
+#panel.open{transform:translateX(0)}
+.ph{padding:20px 20px 15px;border-bottom:1px solid var(--pillbd);position:relative}
+.ph .row{display:flex;align-items:center;gap:12px}
+.ph .hx{width:46px;height:52px;flex:none;display:grid;place-items:center;position:relative;
+  clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);background:linear-gradient(160deg,var(--hex2),var(--hex))}
+.ph .hx .hxb{position:absolute;inset:0;clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);background:var(--rc,#4a4e5a);z-index:-1;transform:scale(1.08)}
+.ph .hx .ic{font-size:22px}
+.ph .pk{font-size:10px;letter-spacing:.15em;text-transform:uppercase;font-weight:800;color:var(--rc,var(--dim))}
+.ph h2{margin:3px 0 0;font-size:21px;font-weight:800;line-height:1.1}
+.ph .badge2{display:inline-block;font-size:9.5px;font-weight:800;padding:2px 8px;border-radius:20px;margin-top:8px;
+  background:#0000;color:var(--rc,#ccc);border:1px solid var(--rc,#555);letter-spacing:.04em}
+.closeX{position:absolute;top:14px;right:14px;width:30px;height:30px;border-radius:8px;border:1px solid var(--pillbd);
+  background:#1a1b1f;color:var(--dim);font-size:16px;cursor:pointer;display:grid;place-items:center}
+.closeX:hover{color:#fff}
+.pbody{padding:16px 20px;overflow-y:auto;flex:1;-webkit-user-select:text;user-select:text}
+.pbody::-webkit-scrollbar{width:8px}.pbody::-webkit-scrollbar-thumb{background:#33353d;border-radius:8px}
+.field{margin-bottom:15px}
+.field label{display:block;font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);font-weight:800;margin-bottom:5px}
+.field .val{font-size:13.5px;line-height:1.55;color:#d6d9e6;white-space:pre-wrap}
+.field input,.field textarea,.field select{width:100%;background:#141519;border:1px solid var(--pillbd);color:var(--ink);
+  border-radius:9px;padding:9px 11px;font-size:13px;font-family:inherit;resize:vertical}
+.field textarea{min-height:70px;line-height:1.5}
+.actv{background:#141519;border:1px solid var(--pillbd);border-radius:11px;padding:12px 13px}
+.facts{display:flex;flex-direction:column;gap:0}
+.fact{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid #ffffff0d;align-items:baseline}
+.fact:last-child{border-bottom:0}
+.fact .fk{flex:none;width:96px;font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--rc,var(--dim));padding-top:1px}
+.fact .fv{flex:1;font-size:13px;line-height:1.45;color:#dbdfec}
+.actv .an{font-size:14px;font-weight:800;color:var(--rc,#fff)}
+.actv .am{font-size:10.5px;color:var(--dim);margin:3px 0 7px;font-weight:600}
+.actv .at{font-size:12.5px;line-height:1.5;color:#cdd1e0}
+.stars{display:flex;flex-direction:column;gap:7px}
+.st{background:#141519;border:1px solid var(--pillbd);border-radius:10px;padding:9px 11px}
+.st.mile{border-color:var(--rc,#ffb020);background:linear-gradient(90deg,#ffb0200f,#141519 40%)}
+.st .sh{display:flex;align-items:center;gap:8px}
+.st .n{width:24px;height:24px;border-radius:7px;display:grid;place-items:center;font-size:11px;font-weight:800;flex:none;
+  background:#26272d;color:var(--dim);border:1px solid var(--pillbd)}
+.st.mile .n{background:var(--rc,#ffb020);color:#141519;border-color:transparent}
+.st .sl{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.st.mile .sl{color:var(--rc,#ffb020)}
+.st .sd{font-size:12.5px;line-height:1.5;color:#cdd1e0;margin-top:6px}
+.pactions{display:flex;gap:8px;padding:13px 20px;border-top:1px solid var(--pillbd)}
+.pactions .t{flex:1;text-align:center;background:#26272d;border:1px solid var(--pillbd);color:var(--ink);
+  border-radius:10px;padding:10px;font-size:12.5px;font-weight:700;cursor:pointer}
+.pactions .t:hover{background:#31333b}
+.pactions .t.pri{background:linear-gradient(180deg,#8a6bff,#6b4cff);border-color:#7c5cff;color:#fff}
+.pactions .t.danger{border-color:#5a2540;color:#ff8fa3}
+.pactions .t.danger:hover{background:#3a1828}
+
+.toast{position:fixed;bottom:66px;left:50%;transform:translateX(-50%) translateY(16px);opacity:0;
+  background:#2a2c33;border:1px solid #4a4e5a;color:#fff;padding:9px 16px;border-radius:10px;font-size:12.5px;
+  z-index:70;transition:.24s;pointer-events:none;box-shadow:0 8px 24px #000a}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+@media(max-width:640px){#legend{max-width:42vw}#top b{font-size:12.5px}.lbl{font-size:10.5px}}
+</style>
+</head>
+<body>
+<div id="stage"><div id="world"><svg id="links"></svg></div></div>
+
+<div id="zbar">
+  <button id="zout">−</button><span class="zl" id="zlvl">100%</span><button id="zin">+</button>
+</div>
+<div id="top"><span class="mi">🗺️</span><b>Swarm Rush — Game Map</b></div>
+<div id="tools">
+  <button class="t" id="addBtn">＋ Add</button>
+  <button class="t" id="fitBtn">⤢ Fit</button>
+  <button class="t" id="resetBtn">↺ Reset</button>
+</div>
+<div id="legend"></div>
+
+<div id="panel">
+  <div class="ph">
+    <button class="closeX" id="pClose">×</button>
+    <div class="row">
+      <div class="hx" id="pHex"><div class="hxb"></div><div class="ic" id="pIcon">◆</div></div>
+      <div><div class="pk" id="pKind">CLASS</div><h2 id="pTitle">Title</h2></div>
+    </div>
+    <div id="pRarity"></div>
+  </div>
+  <div class="pbody" id="pBody"></div>
+  <div class="pactions" id="pActions"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const RC={Common:'#9aa3c7',Uncommon:'#4ade80',Rare:'#3b9dff',Epic:'#b45cff',Legendary:'#ff9f2e',Mythic:'#ff4d6d',Secret:'#ffd54a'};
+const RO=['Common','Uncommon','Rare','Epic','Legendary','Mythic','Secret'];
+const ICON={
+  root:'🐝',
+  classes:'🎭',skills:'✨',gear:'🛡️',match:'⚔️',currencies:'💠',lobby:'🏛️',progression:'📈',social:'🌐',meta:'🎁',later:'🔮',
+  // classes
+  scavenger:'💰',sprinter:'💨',medic:'✚',beastmaster:'🐺',berserker:'😤',engineer:'🔧',glasscannon:'💥',inferno:'🔥',necromancer:'💀',gambler:'🎲',twins:'⚔️',archangel:'👼',
+  // currencies
+  coins:'🪙',gems:'💎',trait:'🔮',
+  // gear
+  weapon:'🗡️',pendant:'📿',ring:'💍',helmet:'⛑️',chest:'🦺',leggings:'👖',
+  // skills/match/etc
+  banner:'🎰',evo:'🌀',roster:'📜',starter:'🎯',
+  swarm:'🐜',boss:'👹',xp:'🟩',levelup:'⬆️',revive:'💗',coop:'👥',pickups:'🎁',
+  grade:'🔠',tree:'🌳',traits:'🧬',shop:'🏪',reforge:'⚒️',gearevo:'🔀',
+  stats:'📊',collection:'📖',achieve:'🏆',difficulty:'🎚️',endless:'♾️',plevel:'🎖️',prestige:'🔄',
+  battlepass:'🎟️',leaderboard:'🥇',party:'🤝',monetize:'💵',gamepass:'🎫',roadmap:'🗺️',shiny:'🌟',
+};
+
+function star(n,txt,mile){return{n,txt,mile:!!mile}}
+
+/* Build helpers: nodes get {id,name,parent,kind,rarity?,identity?,desc?,active?,stars?,note?,tag?} */
+function seed(){
+ const nodes=[];
+ const add=(o)=>{nodes.push(o);return o.id;};
+
+ // ---- HUB ----
+ add({id:'root',kind:'root',name:'Swarm Rush',desc:'Survivor.io-style auto-survival roguelite for Roblox. Co-op core. Studded aesthetic. The whole game plan branches out from here.',collapsed:false});
+
+ // ---- MAJOR SYSTEMS (branch off hub) ----
+ add({id:'match',kind:'sys',parent:'root',name:'Match / Swarm',tag:'system',identity:'The core gameplay loop',
+   facts:[['What','Auto-attack survival vs an endless swarm'],['Loop','Kill → collect XP → level up → pick a skill → survive'],['Includes','Bosses, pickups, revive, co-op scaling, speed multiplier'],['Feel','Hundreds killed per wave, thousands per run']],collapsed:false});
+ add({id:'skills',kind:'sys',parent:'root',name:'Skills',tag:'system',identity:'49-skill roster + banner',
+   facts:[['What','Player attacks & abilities (always called Skills)'],['Roster','49 skills across all rarities'],['Sources','Skill Choice (in-match) + summon banner'],['Loadout','20-skill pool brought into a match'],['Evolves','Skills combine mid-match into stronger forms']],collapsed:false});
+ add({id:'classes',kind:'sys',parent:'root',name:'Classes',tag:'system',identity:'12 collectible passive identities',
+   facts:[['What','Equippable passive identities (keep your avatar)'],['Count','12 across all rarities'],['Banner','Own tab, 250 Gems/roll, own pity'],['Upgrade','6★ manual star-up (1 dupe per star)'],['Actives','Each has a button ability unlocked at a milestone']],collapsed:false});
+ add({id:'gear',kind:'sys',parent:'root',name:'Gear',tag:'system',identity:'6 slots, rarities, merging',
+   facts:[['Slots','6 (3 ATK, 3 HP)'],['Rarities','Common → Secret'],['Bonuses','Per-rarity Rarity Bonuses that stack'],['Merge','3 same items → next rarity'],['Formula','flat × (1 + sum of all %)']],collapsed:false});
+ add({id:'currencies',kind:'sys',parent:'root',name:'Currencies',tag:'system',identity:'3 currencies',
+   facts:[['Coins','Everyday sink (shop, leveling, grade)'],['Gems','Summon banner (skills + classes)'],['Trait Crystals','Re-roll player-wide Traits'],['Note','Grade Shards cut; Trade → Trait Crystals']],collapsed:false});
+ add({id:'lobby',kind:'sys',parent:'root',name:'Lobby',tag:'system',identity:'Hub stations',
+   facts:[['Grade Station','Roll rank + % buff (Coins)'],['Skill Tree','Global player buffs'],['Traits','Player-wide buffs (Trait Crystals)'],['Gold Shop','Spend Coins'],['Later','Reforge + Gear Evolution (post-launch)']],collapsed:false});
+ add({id:'meta',kind:'sys',parent:'root',name:'Meta / Progression',tag:'system',identity:'Accounts & engagement',
+   facts:[['Collection','Index of owned skills/classes/gear'],['Achievements','Milestone rewards'],['Modes','Difficulty tiers + Endless'],['Account','Player level → Skill Tree'],['Prestige','Rebirth (post-launch)']],collapsed:false});
+ add({id:'social',kind:'sys',parent:'root',name:'Social / Money',tag:'system',identity:'Co-op, battle pass, monetization',
+   facts:[['Co-op','Party + co-op (CORE launch feature)'],['Battle Pass','Free + premium (post-launch)'],['Leaderboards','Physical, in-lobby'],['Money','Gamepasses + dev products'],['Roadmap','Post-launch content plan']],collapsed:false});
+
+ // ---- CLASSES (cluster around 'classes') ----
+ const CL=[
+  {id:'scavenger',name:'Scavenger',rarity:'Common',identity:'Coin / loot farming',
+   desc:'Enemies drop more and higher-value coins; kills can drop XP orbs and premium Diamond Coins. Turns the swarm into income.',
+   active:{name:'Jackpot Rush',dur:'15s',cd:'90s',txt:'Coin drop chance 100%, coin value +100%. 1%/kill drops a buff-orb (+20% dmg OR +20% move speed, 5s). 0.1%/kill grants a free Skill Choice roll.'},
+   stars:[star(1,'+50% coin value, +15% coin drop chance'),star(2,'Coin drop chance → 30%'),star(3,'Coin pickups: 20% chance to also drop a small XP orb (50% of a normal orb)',1),star(4,'Coin value → +100% total'),star(5,'Coin drop chance → 50%'),star(6,'Kills: 10% chance to drop a Diamond Coin (worth 2×)',1)],
+   note:'XP orb from 3★ scales with the enemy it dropped from.'},
+  {id:'sprinter',name:'Sprinter',rarity:'Common',identity:'Speed / mobility',
+   desc:'Boosts move speed and attack speed with burst-driven mobility and a slowing trail. A fast kiting class built around outrunning the swarm.',
+   active:{name:'Slipstream',dur:'4s',cd:'20s',txt:'+100% move speed, pass through enemies, damage immunity (i-frames). Passing through an enemy deals a tick = 40% of player attack damage.'},
+   stars:[star(1,'+15% move speed, +8% attack speed'),star(2,'+20% move speed, +12% attack speed'),star(3,'Standing still 1.5s then moving: +30% move speed burst for 2s',1),star(4,'+25% move speed, +16% attack speed'),star(5,'+22% attack speed (total)'),star(6,'Moving leaves a trail that slows enemies in it by 25% for 2s',1)]},
+  {id:'medic',name:'Medic',rarity:'Uncommon',identity:'Co-op healer',
+   desc:'Passively regenerates your HP and, in co-op, heals nearby teammates through an aura. Overheal turns excess healing into shields.',
+   active:{name:'Rally Banner',dur:'15s',cd:'45s',txt:'Plant a banner (25 stud radius). Banner-user: +2.5% max HP every 2s + 25% damage reduction. Allies inside: +5% max HP every 5s + 25% damage reduction.'},
+   stars:[star(1,'Self-regen 2.5%/sec; co-op ally aura 1.5%/sec, radius 15 studs'),star(2,'Self → 3.5%/sec, ally → 2%/sec'),star(3,'Below 50% HP (you or ally): healing surges 2× for 10s, 1-min cooldown',1),star(4,'Self → 5%/sec, ally → 3%/sec. Overheal unlocked: +25% (heal past max HP = shield, self + allies)'),star(5,'Aura radius → 25 studs'),star(6,'Overheal → +50%. Combat Medic: while shielded, +30% damage & +15% attack speed',1)],
+   note:'Base ally aura ticks every 3s; banner heals are additional to regen.'},
+  {id:'beastmaster',name:'Beastmaster',rarity:'Uncommon',identity:'Evolving hound companion',
+   desc:'Fight alongside a loyal hound that evolves mid-match (Wolf → Direfang → Hellhound → Fenrir). Fully evolve three to fuse Cerberus.',
+   active:{name:'Frenzy',dur:'8s',cd:'35s',txt:'Beast: +100% attack speed, +50% move speed, +75% damage, charges through enemies. Scales with current form.'},
+   stars:[star(1,'Companion unlocked. Wolf 50% · Direfang 80% · Hellhound 125% · Fenrir 175% (of player dmg)'),star(2,'Pet damage +25% (all stages), evolution reqs −10%'),star(3,'Unlocks Frenzy active',1),star(4,'Pet damage +50% total, pet +20% max HP'),star(5,'Evolution reqs −20%, pet starts at Direfang'),star(6,'CERBERUS: fully evolve 3 beasts → fuse (300% dmg, 1.5/sec, cleaves 6, 3 heads attack separately)',1)],
+   note:'Evolve reqs (pet+player kills): 50/250 · 100/500 · 250/1000. Treats drop 1.5% of PET kills = +15% of stage req. Pet death → dead 30s then auto-revives free (keeps stage). Attacks: Wolf claw · Direfang bite · Hellhound fire-breath · Fenrir claw + Savage Leap. Cerberus attacks TBD.'},
+  {id:'berserker',name:'Berserker',rarity:'Rare',identity:'Untouched damage ramp',
+   desc:'Staying untouched ramps attack and move speed, building toward a damage-boosting Frenzy. Rewards flawless dodging.',
+   active:{name:'Bloodthirst',dur:'~45s / 60s cap',cd:'TBD',txt:"Can't drop below 1 HP; damage scales up as HP drops. Kills extend duration (cost ramps). Ends → heal to 15% HP + now vulnerable."},
+   stars:[star(1,'No-damage attack-speed ramp (reset on hit)'),star(2,'Stacks build faster'),star(3,'Stacks also add move speed',1),star(4,'Higher max attack- & move-speed caps'),star(5,'Getting hit removes only half your stacks'),star(6,'FRENZY: bonus-damage state that lasts while at max stacks',1)]},
+  {id:'engineer',name:'Engineer',rarity:'Rare',identity:'Deployable turrets',
+   desc:'Deploys auto-turrets that fight alongside you, growing into rockets, scrap-fields, and a heavy War Machine.',
+   active:{name:'Overclock',dur:'TBD',cd:'TBD',txt:'Supercharge ALL active turrets at once — massively increased attack speed AND damage. Rewards a full turret setup.'},
+   stars:[star(1,'Periodically deploy an auto-turret'),star(2,'Turrets fire faster & up to 2 active'),star(3,'Turrets occasionally fire a mini-rocket (AoE)',1),star(4,'Turrets fire faster + more range'),star(5,'Expired turrets leave a damaging scrap-field'),star(6,'WAR MACHINE: one massive heavy turret — rockets + slows',1)]},
+  {id:'glasscannon',name:'Glass Cannon',rarity:'Epic',identity:'High damage / low HP',
+   desc:'Massively boosts damage but lowers max HP. High-risk, high-reward — hits hard, dies fast.',
+   active:{name:'Overload',dur:'TBD',cd:'TBD',txt:'A few seconds of massively amplified damage, but even more fragile during it. The ultimate damage dump.'},
+   stars:[star(1,'Big +damage, reduced max HP'),star(2,'A little more damage'),star(3,'A while without taking damage → bigger damage boost',1),star(4,'More damage'),star(5,'HP penalty slightly reduced'),star(6,'Hits can critically overkill — big crit + splash',1)]},
+  {id:'inferno',name:'The Inferno',rarity:'Epic',identity:'Spreading fire',
+   desc:'Sets enemies on fire with spreading burn that chains through the swarm and detonates.',
+   active:{name:'Eruption',dur:'instant',cd:'TBD',txt:'Slam the ground — crack the earth in a fiery ring around you. Heavy AoE + knockback. Panic-clear.'},
+   stars:[star(1,'Attacks set enemies on fire (burn DoT)'),star(2,'Burns deal more / last longer'),star(3,'Burning enemies that die leave a fire patch',1),star(4,'Stronger burn'),star(5,'Burning enemies take bonus direct damage from you'),star(6,'INFERNO: all burning enemies erupt at once in a chain',1)]},
+  {id:'necromancer',name:'Necromancer',rarity:'Legendary',identity:'Undead army',
+   desc:'Turns slain enemies into undead minions, building an army led by a Bone Golem. Grows stronger the more you kill.',
+   active:{name:'Bone Golem',dur:'lasts a while',cd:'TBD',txt:'Consume corpses to summon a massive Bone Golem. Passive minions keep spawning — stack multiple Golems over a match.'},
+   stars:[star(1,'Kills can raise undead minions (small cap)'),star(2,'Higher rise chance + larger cap'),star(3,'Minions explode into AoE when they die; cap raised',1),star(4,'Minions tougher, hit harder'),star(5,'Bigger minion cap'),star(6,'BONE GOLEM active; army can get huge',1)]},
+  {id:'gambler',name:'Gambler',rarity:'Legendary',identity:'RNG buffs',
+   desc:'Continuously grants random temporary buffs, with jackpot chances for big payouts. Chaotic, ever-changing power.',
+   active:{name:'All In',dur:'30s → 1min',cd:'TBD',txt:'Take heavy debuffs 30s (−25% dmg, −30% move, −20% atk spd), then roll. WIN: +250% dmg, +125% move, +150% atk spd for 1 min. LOSS: debuffs extended/worsened.'},
+   stars:[star(1,'Every few seconds, gain a random temporary buff'),star(2,'Buffs roll more often'),star(3,'JACKPOT: small chance a roll lands a rare super-buff',1),star(4,'Buffs last longer'),star(5,'Bad rolls removed from the pool'),star(6,'LOADED DICE: two buffs per roll + higher jackpot chance',1)]},
+  {id:'twins',name:'The Twins',rarity:'Mythic',identity:'Stance-swapping',
+   desc:'Toggle between a slow high-damage Heavy stance and a fast low-damage Swift stance on a short cooldown.',
+   active:{name:'Twin Drive',dur:'25s',cd:'TBD',txt:'Amplifies current stance (swap mid-Drive to move it). Heavy: +100% dmg, +40% crit, −15% atk spd. Swift: +100% atk spd, −25% dmg/hit, +10% lifesteal.'},
+   stars:[star(1,'Two stances + swap. Heavy: +60% dmg, −20% atk spd, 25% crit · Swift: +80% atk spd, −35% dmg/hit, 5% lifesteal'),star(2,'Heavy crit + Swift lifesteal deepen'),star(3,'SWAP SURGE: swapping releases a burst matching the stance entered',1),star(4,'Both stances stronger'),star(5,'Swap Surge grants a brief buff (Heavy shield · Swift move speed)'),star(6,'SYNC: after swapping, briefly keep the other stance — rapid-swap both at once',1)]},
+  {id:'archangel',name:'Archangel',rarity:'Secret',identity:'Divine + in-match evolution',
+   desc:'Divine class with holy Smite, an auto-revive, on-demand god-mode, and unique in-match ability upgrades at 6★. The strongest, most spectacular class.',
+   active:{name:'Ascension',dur:'several sec',cd:'TBD',txt:'On-demand god-mode: rise up glowing, damage and holy power massively amplified, raining light across the whole battlefield.'},
+   stars:[star(1,'Wings + Smite (light strikes down on nearby enemies)'),star(2,'Smite more often / larger range'),star(3,'ASCENSION active unlocked',1),star(4,'Stronger Smite + Ascension'),star(5,'Auto-revive once per match (+ light-burst clears nearby enemies)'),star(6,'ASCENDED PATH: upgrade mid-match via Skill Choice — Smite → Holy Rings → Sunburst → Halo Barrage',1)],
+   note:'In-match Class upgrading is Archangel-6★ only for now; planned to extend to all classes later.'},
+ ];
+ CL.forEach(c=>add({...c,kind:'class',parent:'classes',collapsed:true}));
+ // class banner sub-node
+ add({id:'classbanner',kind:'leaf',parent:'classes',name:'Class Banner',tag:'banner',
+   facts:[['Cost','250 Gems / roll'],['Rates','C 40 · U 30 · R 18 · E 8 · L 3.4 · M 0.5 · S 0.1 (%)'],['Pity','Legendary @50 · Mythic @250 · Secret @1000'],['Star-up','Manual, 1 dupe per star']]});
+
+ // ---- CURRENCIES (cluster around 'currencies') ----
+ add({id:'coins',kind:'leaf',parent:'currencies',name:'Coins',tag:'currency',
+   facts:[['Earn','Matches, quests, daily'],['Spend','Gold Shop, level gear & skills, Grade Station'],['Role','Everyday sink']]});
+ add({id:'gems',kind:'leaf',parent:'currencies',name:'Gems',tag:'currency',
+   facts:[['Earn','Matches (esp. higher), quests, daily'],['Spend','Summon banner — Skills + Classes tabs'],['Role','Long-term sink via Classes (250/roll)']]});
+ add({id:'trait',kind:'leaf',parent:'currencies',name:'Trait Crystals',tag:'currency',
+   facts:[['Earn','Quests, higher matches, rewards'],['Spend','Re-roll player-wide Traits'],['Note','Renamed from Trade Crystals']]});
+
+ // ---- GEAR (cluster) ----
+ add({id:'gearslots',kind:'leaf',parent:'gear',name:'6 Slots',tag:'gear',
+   facts:[['ATK','Weapon, Pendant, Ring'],['HP','Helmet, Chestplate, Leggings (+tiny speed)'],['Weapon','Equipped weapon = your in-match weapon']]});
+ add({id:'raritybonus',kind:'leaf',parent:'gear',name:'Rarity Bonuses',tag:'gear',
+   facts:[['What','Per-rarity effects that STACK, differ by type'],['HP ladder','+5% → Emergency Heal → +15% → Knockback → +30% → Free Revive → Cheat Death'],['ATK ladder','+10% → Bleed → +25% → 3rd-hit crit → +40% → on-kill explosion → Execute']]});
+ add({id:'merging',kind:'leaf',parent:'gear',name:'Merging',tag:'gear',
+   facts:[['Recipe','3 same item + same rarity → next rarity'],['Keeps','Highest LEVEL + highest GRADE of the three']]});
+ add({id:'statformula',kind:'leaf',parent:'gear',name:'Stat Formula',tag:'gear',
+   facts:[['Formula','flat_subtotal × (1 + sum_of_all_percents)'],['Percents','Grade + Trait + Skill Tree + %-rarity bonuses'],['Rule','Added together, applied ONCE — never multiplied']]});
+
+ // ---- SKILLS (cluster) ----
+ add({id:'skillroster',kind:'leaf',parent:'skills',name:'Summon Roster',tag:'skills',
+   facts:[['Size','49 skills, all rarities'],['Rates','C 40 · U 30 · R 18 · E 8 · L 3.4 · M 0.5 · S 0.1 (%)']]});
+ add({id:'skillbanner',kind:'leaf',parent:'skills',name:'Skills Banner',tag:'banner',
+   facts:[['Cost','Gems per roll'],['Pity','Legendary @50 · Mythic @250 · Secret @1000'],['Tabs','Skills + Classes (two banner tabs)']]});
+ add({id:'loadout',kind:'leaf',parent:'skills',name:'Loadout Pool',tag:'skills',
+   facts:[['Size','20-skill pool'],['Use','Skill Choice picks from it as you level']]});
+ add({id:'skillevo',kind:'leaf',parent:'skills',name:'In-match Evolution',tag:'skills',
+   facts:[['What','Skills combine mid-match into stronger forms'],['Example','Lightning + Haste → Storm Surge'],['Status','Evolution table TBD']]});
+ add({id:'starterkit',kind:'leaf',parent:'skills',name:'Starter Loadout',tag:'skills',
+   facts:[['What','Free starter weapon + skills for new players'],['Banner','For additional & rarer skills']]});
+
+ // ---- MATCH (cluster) ----
+ add({id:'swarm',kind:'leaf',parent:'match',name:'Swarm System',tag:'match',
+   facts:[['What','Enemies spawn in escalating waves'],['Cap','~250 alive at once (performance)'],['Scale','Hundreds/wave, thousands/run']]});
+ add({id:'skillchoice',kind:'leaf',parent:'match',name:'Level-up / Skill Choice',tag:'match',
+   facts:[['Trigger','Level up in-match'],['Effect','Game freezes with a timer → pick a skill/upgrade'],['Classes','6★ Archangel can appear here (later: all)']]});
+ add({id:'bosses',kind:'leaf',parent:'match',name:'Bosses',tag:'match',
+   facts:[['Types','Mini-boss + boss'],['Arena','Locks during the fight'],['Move','Mini-boss ground-pound shockwave (jump over)']]});
+ add({id:'pickups',kind:'leaf',parent:'match',name:'Pickups & Drops',tag:'match',
+   facts:[['XP','Neon studded square orbs'],['Also','Health, coins, in-match drops']]});
+ add({id:'revive',kind:'leaf',parent:'match',name:'Revive',tag:'match',
+   facts:[['What','Revive on death'],['Cost','One free vs escalating cost — TBD']]});
+ add({id:'coop',kind:'leaf',parent:'match',name:'Co-op Scaling',tag:'match',
+   facts:[['What','Enemies scale with player count'],['Method','More count vs more tankiness at cap — TBD'],['Priority','Co-op is a CORE launch feature']]});
+ add({id:'speed',kind:'leaf',parent:'match',name:'Speed Multiplier',tag:'match',
+   facts:[['What','In-match 2× speed'],['Rule','Same rewards, just faster (economy-safe)']]});
+
+ // ---- LOBBY (cluster) ----
+ add({id:'grade',kind:'leaf',parent:'lobby',name:'Grade Station',tag:'lobby',
+   facts:[['What','Roll a letter rank (C→SSS) + % stat buff'],['Cost','Coins (Grade Shards cut)'],['Merge','Grade transfers on merge']]});
+ add({id:'skilltree',kind:'leaf',parent:'lobby',name:'Skill Tree',tag:'lobby',
+   facts:[['What','Global player buffs from account level'],['Status','Framework only for now']]});
+ add({id:'traits',kind:'leaf',parent:'lobby',name:'Traits',tag:'lobby',
+   facts:[['What','PLAYER-WIDE global buffs (e.g. +10% all dmg)'],['Roll','With Trait Crystals'],['UI','Stop-on selection + auto-roll']]});
+ add({id:'goldshop',kind:'leaf',parent:'lobby',name:'Gold Shop',tag:'lobby',
+   facts:[['What','Spend Coins on rotating stock']]});
+ add({id:'later',kind:'leaf',parent:'lobby',name:'Later Updates',tag:'later',
+   facts:[['Reforge','Named %-buff roller'],['Gear Evolution','Materials → evolve items'],['Status','Both cut from launch, post-release']]});
+
+ // ---- META (cluster) ----
+ add({id:'collection',kind:'leaf',parent:'meta',name:'Collection Index',tag:'meta',
+   facts:[['What','Track owned skills / classes / gear'],['Reward','Completion rewards']]});
+ add({id:'achieve',kind:'leaf',parent:'meta',name:'Achievements',tag:'meta',
+   facts:[['What','Milestone achievements'],['Reward','Buff rewards']]});
+ add({id:'difficulty',kind:'leaf',parent:'meta',name:'Difficulty / Endless',tag:'meta',
+   facts:[['What','Chapter select + difficulty tiers'],['Endless','Scaling endless mode']]});
+ add({id:'plevel',kind:'leaf',parent:'meta',name:'Player Level',tag:'meta',
+   facts:[['What','Account-level progression'],['Feeds','The Skill Tree']]});
+ add({id:'prestige',kind:'leaf',parent:'meta',name:'Prestige / Rebirth',tag:'meta',
+   facts:[['What','Big multiplier per star + level gate'],['Status','Post-launch']]});
+ add({id:'sidesys',kind:'leaf',parent:'meta',name:'Side Systems',tag:'meta',
+   facts:[['Includes','Daily/playtime, codes, quests, free chest'],['Also','Stats panel']]});
+
+ // ---- SOCIAL (cluster) ----
+ add({id:'battlepass',kind:'leaf',parent:'social',name:'Battle Pass',tag:'social',
+   facts:[['Tracks','Free + premium'],['Premium','Can grant shiny Classes'],['Status','Post-launch (~update 1-2)']]});
+ add({id:'leaderboard',kind:'leaf',parent:'social',name:'Leaderboards',tag:'social',
+   facts:[['What','Physical in-lobby leaderboards']]});
+ add({id:'party',kind:'leaf',parent:'social',name:'Party + Co-op',tag:'social',
+   facts:[['Priority','CORE launch feature'],['Includes','Party up + matchmaking'],['Loot','Shared vs individual — TBD']]});
+ add({id:'monetize',kind:'leaf',parent:'social',name:'Monetization',tag:'social',
+   facts:[['Gamepasses','Auto-Collect, x2 Coins/Gems/XP, Extra Inventory, Shiny Hunter'],['Also','Developer products'],['No','Generic VIP area']]});
+ add({id:'shiny',kind:'leaf',parent:'social',name:'Shiny Hunter',tag:'social',
+   facts:[['What','Gamepass boosting shiny Class chance'],['Ties','Battle pass'],['Shiny','Same passive + small boost + cosmetic']]});
+ add({id:'roadmap',kind:'leaf',parent:'social',name:'Roadmap',tag:'social',
+   facts:[['Post-launch','Battle pass, Reforge, Gear Evolution'],['More','Classes/skills, events']]});
+
+ // ---- LAYOUT: hierarchical radial. Hub center; systems in a ring; each system's children ring around IT. ----
+ const hub=nodes.find(n=>n.id==='root');hub.x=0;hub.y=0;
+ const systems=nodes.filter(n=>n.parent==='root');
+ const S=systems.length, R1=680;
+ systems.forEach((s,i)=>{
+   const ang=(-Math.PI/2)+(i/S)*Math.PI*2;
+   s.x=Math.cos(ang)*R1; s.y=Math.sin(ang)*R1*0.98; s._ang=ang;
+   const kids=nodes.filter(n=>n.parent===s.id);
+   const K=kids.length;
+   // full circle around the category node; radius scales with child count
+   const R2=Math.max(150, 60+K*22);
+   kids.forEach((k,j)=>{
+     // start at top, go around; offset so it doesn't collide with the spoke back to hub
+     const a=(-Math.PI/2)+(j/K)*Math.PI*2 + 0.3;
+     k.x=s.x+Math.cos(a)*R2; k.y=s.y+Math.sin(a)*R2;
+   });
+ });
+ return {nodes};
+}
+
+let DATA=null,view={x:0,y:0,k:1},sel=null,editing=false;
+const world=document.getElementById('world'),svg=document.getElementById('links'),stage=document.getElementById('stage');
+
+function load(){try{const r=localStorage.getItem('smr_fullmap');DATA=r?JSON.parse(r):null}catch(e){DATA=null}
+  if(!DATA)DATA=seed();DATA.nodes.forEach(n=>{if(typeof n.x!=='number')n.x=0;if(typeof n.y!=='number')n.y=0})}
+function save(){try{localStorage.setItem('smr_fullmap',JSON.stringify(DATA))}catch(e){}}
+function byId(id){return DATA.nodes.find(n=>n.id===id)}
+function children(id){return DATA.nodes.filter(n=>n.parent===id)}
+function visible(){const vis=[];const root=DATA.nodes.find(n=>!n.parent)||DATA.nodes[0];
+  (function w(n){vis.push(n);if(!n.collapsed)children(n.id).forEach(w)})(root);
+  DATA.nodes.filter(n=>!n.parent&&n!==root).forEach(function w(n){vis.push(n);if(!n.collapsed)children(n.id).forEach(w)});
+  return vis;}
+
+function esc(s){return(s==null?'':String(s)).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]))}
+function applyView(){world.style.transform=`translate(${view.x}px,${view.y}px) scale(${view.k})`;
+  document.getElementById('zlvl').textContent=Math.round(view.k*100)+'%';}
+
+function render(){
+  applyView();
+  const vis=visible(),vs=new Set(vis.map(n=>n.id));
+  let p='';
+  vis.forEach(n=>{if(n.parent&&vs.has(n.parent)){const pa=byId(n.parent);
+    const hi=(sel&&(sel.id===n.id||sel.id===n.parent));
+    p+=`<path d="${curve(pa.x,pa.y,n.x,n.y)}" stroke="${hi?'#7c5cff':'#54586880'}" stroke-width="${hi?2.4:1.6}" stroke-dasharray="5 6" fill="none" stroke-linecap="round"/>`;}});
+  svg.innerHTML=p;
+  world.querySelectorAll('.node').forEach(e=>e.remove());
+  const f=document.createDocumentFragment();vis.forEach(n=>f.appendChild(nodeEl(n)));world.appendChild(f);
+}
+function curve(x1,y1,x2,y2){const mx=(x1+x2)/2,my=(y1+y2)/2,dx=x2-x1,dy=y2-y1;
+  // gentle S-curve via perpendicular bow
+  const bow=0.12,px=-dy*bow,py=dx*bow;
+  return `M ${x1} ${y1} Q ${mx+px} ${my+py} ${x2} ${y2}`;}
+
+function nodeEl(n){
+  const rc=RC[n.rarity]||null,kids=children(n.id),isRoot=n.kind==='root',isSys=n.kind==='sys';
+  const el=document.createElement('div');el.className='node'+(isRoot?' root':'')+(isSys?' sysn':'')+(sel&&sel.id===n.id?' sel':'');
+  el.style.left=n.x+'px';el.style.top=n.y+'px';
+  const icon=ICON[n.id]|| (isRoot?'🐝':'◆');
+  let badge='';
+  if(kids.length&&!isRoot)badge=`<div class="badge">${n.collapsed?'+'+kids.length:kids.length}</div>`;
+  else if(rc)badge=`<div class="badge rar" style="--rc:${rc}">${n.rarity[0]}</div>`;
+  const hexCls='hex'+(isRoot?' root':'')+(isSys?' sys':'');
+  el.innerHTML=`<div class="hexwrap">
+      <div class="${hexCls}"><div class="hexbd" ${rc?`style="background:${rc}"`:(isSys?'style="background:#5c6180"':'')}></div><div class="ic">${icon}</div></div>
+      ${badge}</div>
+    ${isRoot?`<div class="lblpill">${esc(n.name)}</div>`:`<div class="lbl${isSys?' syslbl':''}">${esc(n.name)}</div>`}`;
+  let moved=false;
+  el.addEventListener('pointerdown',e=>{e.stopPropagation();dragNode(e,n,()=>moved=true)});
+  el.addEventListener('click',e=>{
+    e.stopPropagation();
+    if(moved){moved=false;return}
+    // if the node has children, a tap toggles its cluster open/closed AND opens its panel
+    if(children(n.id).length){n.collapsed=!n.collapsed;render();save();}
+    openPanel(n);
+  });
+  return el;
+}
+
+/* pan */
+let pan=false,ps=null;
+stage.addEventListener('pointerdown',e=>{if(e.target.closest('.node'))return;pan=true;ps={x:e.clientX-view.x,y:e.clientY-view.y};stage.classList.add('grab');});
+stage.addEventListener('pointermove',e=>{if(!pan)return;view.x=e.clientX-ps.x;view.y=e.clientY-ps.y;applyView()});
+addEventListener('pointerup',()=>{pan=false;stage.classList.remove('grab')});
+/* drag node */
+function dragNode(e,n,onMove){let sx=e.clientX,sy=e.clientY,ox=n.x,oy=n.y,did=false;
+  function mv(ev){if(Math.abs(ev.clientX-sx)+Math.abs(ev.clientY-sy)>4){did=true;onMove&&onMove()}
+    n.x=ox+(ev.clientX-sx)/view.k;n.y=oy+(ev.clientY-sy)/view.k;render()}
+  function up(){removeEventListener('pointermove',mv);removeEventListener('pointerup',up);if(did)save()}
+  addEventListener('pointermove',mv);addEventListener('pointerup',up);}
+/* zoom */
+function zoomAt(cx,cy,f){const k2=Math.max(0.25,Math.min(2.4,view.k*f)),wx=(cx-view.x)/view.k,wy=(cy-view.y)/view.k;
+  view.x=cx-wx*k2;view.y=cy-wy*k2;view.k=k2;applyView()}
+stage.addEventListener('wheel',e=>{e.preventDefault();zoomAt(e.clientX,e.clientY,e.deltaY<0?1.12:.89)},{passive:false});
+document.getElementById('zin').onclick=()=>zoomAt(innerWidth/2,innerHeight/2,1.18);
+document.getElementById('zout').onclick=()=>zoomAt(innerWidth/2,innerHeight/2,.85);
+let pinch=null;
+stage.addEventListener('touchstart',e=>{if(e.touches.length===2)pinch=dist(e.touches)},{passive:false});
+stage.addEventListener('touchmove',e=>{if(e.touches.length===2&&pinch){e.preventDefault();const d=dist(e.touches),m=mid(e.touches);zoomAt(m.x,m.y,d/pinch);pinch=d}},{passive:false});
+stage.addEventListener('touchend',e=>{if(e.touches.length<2)pinch=null});
+function dist(t){return Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY)}
+function mid(t){return{x:(t[0].clientX+t[1].clientX)/2,y:(t[0].clientY+t[1].clientY)/2}}
+/* fit */
+function fit(){const vis=visible();if(!vis.length)return;let a=1e9,b=1e9,c=-1e9,d=-1e9;
+  vis.forEach(n=>{a=Math.min(a,n.x-90);b=Math.min(b,n.y-70);c=Math.max(c,n.x+90);d=Math.max(d,n.y+80)});
+  const pad=90,k=Math.min((innerWidth-pad*2)/(c-a),(innerHeight-pad*2)/(d-b),1.3);
+  view.k=Math.max(.3,Math.min(k,1.3));view.x=innerWidth/2-((a+c)/2)*view.k;view.y=innerHeight/2-((b+d)/2)*view.k;applyView()}
+
+/* panel */
+const panel=document.getElementById('panel');
+function openPanel(n){sel=n;editing=false;render();const rc=RC[n.rarity]||'#7c5cff';
+  panel.style.setProperty('--rc',rc);
+  document.getElementById('pHex').querySelector('.hxb').style.background=rc;
+  document.getElementById('pIcon').textContent=ICON[n.id]||(n.kind==='root'?'🐝':'◆');
+  document.getElementById('pKind').textContent=(n.kind==='class'?'CLASS':n.kind==='root'?'GAME':(n.tag||'NODE')).toUpperCase();
+  document.getElementById('pTitle').textContent=n.name||'';
+  document.getElementById('pRarity').innerHTML=n.rarity?`<span class="badge2" style="--rc:${rc}">${n.rarity}</span>`:'';
+  body(n);actions(n);panel.classList.add('open');}
+function closeP(){panel.classList.remove('open');sel=null;editing=false;render()}
+document.getElementById('pClose').onclick=closeP;
+
+function body(n){const b=document.getElementById('pBody');if(editing)return editForm(n);
+  let h='';
+  if(n.identity)h+=fld('Identity',n.identity);
+  if(n.facts&&n.facts.length){h+=`<div class="field"><label>Overview</label><div class="facts">`;
+    n.facts.forEach(f=>h+=`<div class="fact"><span class="fk">${esc(f[0])}</span><span class="fv">${esc(f[1])}</span></div>`);
+    h+=`</div></div>`;}
+  if(n.desc)h+=fld('Description',n.desc);
+  if(n.active){const a=n.active;h+=`<div class="field"><label>Active Ability</label><div class="actv">
+    <div class="an">${esc(a.name||'')}</div><div class="am">${a.dur?'Duration '+esc(a.dur):''}${a.dur&&a.cd?'  ·  ':''}${a.cd?'Cooldown '+esc(a.cd):''}</div>
+    <div class="at">${esc(a.txt||'')}</div></div></div>`;}
+  if(n.stars&&n.stars.length){h+=`<div class="field"><label>Star Track</label><div class="stars">`;
+    n.stars.forEach(s=>h+=`<div class="st${s.mile?' mile':''}"><div class="sh"><span class="n">${s.n}★</span><span class="sl">${s.mile?'Milestone':'Upgrade'}</span></div><div class="sd">${esc(s.txt)}</div></div>`);
+    h+=`</div></div>`;}
+  if(n.note)h+=`<div class="field"><label>Dev Note</label><div class="val" style="color:var(--dim);font-size:12px">${esc(n.note)}</div></div>`;
+  if(n.sub&&n.kind!=='class')h+=fld('Detail',n.sub);
+  if(!h)h=`<div class="val" style="color:var(--dim)">Empty node — tap Edit to add details.</div>`;
+  b.innerHTML=h;}
+function fld(l,v){return`<div class="field"><label>${esc(l)}</label><div class="val">${esc(v)}</div></div>`}
+
+function editForm(n){const b=document.getElementById('pBody');const isC=n.kind==='class';
+  let h=`<div class="field"><label>Name</label><input id="e_name" value="${esc(n.name||'')}"></div>`;
+  h+=`<div class="field"><label>Rarity</label><select id="e_rar"><option value="">— none —</option>${RO.map(r=>`<option ${n.rarity===r?'selected':''}>${r}</option>`).join('')}</select></div>`;
+  if(!isC&&n.kind!=='root')h+=`<div class="field"><label>Tag</label><input id="e_tag" value="${esc(n.tag||'')}"></div>`;
+  h+=`<div class="field"><label>Identity</label><input id="e_ident" value="${esc(n.identity||'')}"></div>`;
+  h+=`<div class="field"><label>Overview facts — one per line as "Label: value"</label><textarea id="e_facts" style="min-height:110px">${(n.facts||[]).map(f=>f[0]+': '+f[1]).join('\n')}</textarea></div>`;
+  h+=`<div class="field"><label>Description (optional, use facts instead when you can)</label><textarea id="e_desc">${esc(n.desc||'')}</textarea></div>`;
+  h+=`<div class="field"><label>Dev note</label><textarea id="e_note">${esc(n.note||'')}</textarea></div>`;
+  const a=n.active||{};
+  h+=`<div class="field"><label>Active — name</label><input id="e_aname" value="${esc(a.name||'')}"></div>`;
+  h+=`<div style="display:flex;gap:8px"><div class="field" style="flex:1"><label>Dur</label><input id="e_adur" value="${esc(a.dur||'')}"></div><div class="field" style="flex:1"><label>Cooldown</label><input id="e_acd" value="${esc(a.cd||'')}"></div></div>`;
+  h+=`<div class="field"><label>Active — text</label><textarea id="e_atxt">${esc(a.txt||'')}</textarea></div>`;
+  h+=`<div class="field"><label>Star track — one per line, "*" = milestone</label><textarea id="e_stars" style="min-height:150px">${(n.stars||[]).map(s=>(s.mile?'* ':'')+s.txt).join('\n')}</textarea></div>`;
+  b.innerHTML=h;}
+
+function actions(n){const a=document.getElementById('pActions');
+  if(editing){a.innerHTML=`<button class="t" id="pc">Cancel</button><button class="t pri" id="ps">Save</button>`;
+    pc.onclick=()=>{editing=false;body(n);actions(n)};ps.onclick=()=>saveEdits(n);return}
+  a.innerHTML=`<button class="t" id="pe">Edit</button><button class="t" id="pa">＋ Child</button>${n.kind==='root'?'':'<button class="t danger" id="pd">Delete</button>'}`;
+  pe.onclick=()=>{editing=true;body(n);actions(n)};pa.onclick=()=>addChild(n);const d=document.getElementById('pd');if(d)d.onclick=()=>delNode(n);}
+function saveEdits(n){const g=id=>{const e=document.getElementById(id);return e?e.value.trim():undefined};
+  n.name=g('e_name')||n.name;const r=g('e_rar');if(r!==undefined)n.rarity=r||null;const tg=g('e_tag');if(tg!==undefined)n.tag=tg;
+  n.identity=g('e_ident');n.desc=g('e_desc');n.note=g('e_note');
+  const fx=document.getElementById('e_facts');
+  if(fx){const lines=fx.value.split('\n').map(l=>l.trim()).filter(Boolean);
+    n.facts=lines.map(l=>{const i=l.indexOf(':');return i<0?['',l]:[l.slice(0,i).trim(),l.slice(i+1).trim()];});
+    if(!n.facts.length)n.facts=null;}
+  const an=g('e_aname');n.active=an?{name:an,dur:g('e_adur'),cd:g('e_acd'),txt:g('e_atxt')}:null;
+  const st=document.getElementById('e_stars').value.split('\n').map(l=>l.trim()).filter(Boolean);
+  n.stars=st.map((l,i)=>({n:i+1,txt:l.replace(/^\*\s*/,''),mile:l.startsWith('*')}));
+  editing=false;save();openPanel(n);toast('Saved')}
+function addChild(p){const id='n'+Date.now().toString(36),k=children(p.id).length;
+  const ang=Math.random()*Math.PI*2;
+  const nn={id,kind:p.kind==='root'?'class':'sub',parent:p.id,name:'New node',rarity:p.kind==='root'?'Common':null,
+    x:p.x+Math.cos(ang)*200,y:p.y+Math.sin(ang)*200,collapsed:true};
+  DATA.nodes.push(nn);p.collapsed=false;save();render();openPanel(nn);editing=true;body(nn);actions(nn);toast('Node added')}
+function delNode(n){const del=new Set();(function w(id){del.add(id);children(id).forEach(c=>w(c.id))})(n.id);
+  DATA.nodes=DATA.nodes.filter(x=>!del.has(x.id));save();closeP();render();toast('Deleted')}
+
+document.getElementById('addBtn').onclick=()=>addChild(DATA.nodes.find(x=>x.kind==='root')||DATA.nodes[0]);
+document.getElementById('fitBtn').onclick=fit;
+document.getElementById('resetBtn').onclick=async()=>{if(!confirm('Reset back to the original 12 classes? Edits will be lost.'))return;DATA=seed();await save();closeP();render();fit();toast('Reset')};
+document.getElementById('legend').innerHTML=RO.map(r=>`<div class="lg"><i style="background:${RC[r]}"></i>${r}</div>`).join('');
+let tT;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(tT);tT=setTimeout(()=>t.classList.remove('show'),1500)}
+
+(async function(){await load();render();fit()})();
+</script>
+</body>
+</html>
